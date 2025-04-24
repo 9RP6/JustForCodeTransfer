@@ -3,8 +3,8 @@ import json
 import base64
 
 # LoRa packet forwarder settings
-UDP_IP = "0.0.0.0"
-UDP_PORT = 1700
+UDP_IP = "0.0.0.0"         # Listen on all interfaces
+UDP_PORT = 1700            # Default LoRaWAN packet forwarder port
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind((UDP_IP, UDP_PORT))
@@ -31,13 +31,12 @@ while True:
                         print(f"Payload Length: {len(decoded)} bytes")
 
                         if len(decoded) >= 10:
-                            # "Hello " (6 bytes) + 4-byte millisecond timestamp
+                            # "Hello " (6 bytes) + 4-byte counter
                             ascii_part = decoded[:6].decode('ascii', errors='ignore')
-                            timestamp_bytes = decoded[6:10]
-                            timestamp_ms = int.from_bytes(timestamp_bytes, byteorder='big')
-                            timestamp_sec = timestamp_ms / 1000
+                            counter_bytes = decoded[6:10]
+                            packet_number = int.from_bytes(counter_bytes, byteorder='big')
 
-                            print(f"Decoded Message: '{ascii_part}' | Tick Timestamp: {timestamp_ms} ms ({timestamp_sec:.2f} sec since boot)")
+                            print(f"Decoded Message: '{ascii_part}' | Packet Number: {packet_number}")
                         else:
                             print("Warning: Payload too short to decode expected format")
 
