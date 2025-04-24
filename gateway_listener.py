@@ -3,9 +3,9 @@ import json
 import base64
 import time
 
-# Default LoRa Packet Forwarder address
-UDP_IP = "127.0.0.1"
-UDP_PORT = 1700
+# LoRa packet forwarder settings
+UDP_IP = "0.0.0.0"         # Listen on all interfaces
+UDP_PORT = 1700            # Default LoRaWAN packet forwarder port
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind((UDP_IP, UDP_PORT))
@@ -16,16 +16,16 @@ while True:
     try:
         data, addr = sock.recvfrom(4096)
 
-        # 0x00 indicates PUSH_DATA message type from forwarder
+        # Check if packet is a PUSH_DATA (0x00) message from gateway
         if data[3] == 0x00:
-            json_start = 12  # skip protocol header
+            json_start = 12  # Header is 12 bytes
             try:
                 message = json.loads(data[json_start:])
                 rxpk_list = message.get("rxpk", [])
 
                 for pkt in rxpk_list:
                     raw = pkt.get("data", "")
-                    print(f"\n🔹 Raw Base64 Payload: {raw}")
+                    print(f"\nRaw Base64 Payload: {raw}")
 
                     try:
                         decoded = base64.b64decode(raw)
@@ -33,21 +33,26 @@ while True:
                         print(f"Payload Length: {len(decoded)} bytes")
 
                         if len(decoded) >= 10:
-                            ascii_part = decoded[:6].decode('ascii')
+                            # Try to decode ASCII + 4-byte timestamp
+                            try:
+                                ascii_part = decoded[:6].decode('ascii')
+                            except UnicodeDecodeError:
+                                ascii_part = "<non-ascii>"
+
                             timestamp_bytes = decoded[6:10]
                             timestamp = int.from_bytes(timestamp_bytes, byteorder='big')
                             timestamp_str = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(timestamp))
 
                             print(f"Decoded Message: '{ascii_part}' | Timestamp: {timestamp} ({timestamp_str})")
                         else:
-                            print("Payload too short to parse (expected 10 bytes)")
+                            print("Warning: Payload too short to decode expected format")
 
                     except Exception as decode_err:
-                        print(f"Decode error: {decode_err}")
+                        print(f"Payload decode error: {decode_err}")
 
             except json.JSONDecodeError as json_err:
-                print(f"JSON error: {json_err}")
+                print(f"JSON parse error: {json_err}")
 
     except KeyboardInterrupt:
-        print("\nStopped listener.")
+        print("\nListener stopped by user.")
         break
