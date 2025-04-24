@@ -1,7 +1,8 @@
 import socket
 import json
 import base64
-
+/*AAEBAQEBAQEBikYHABXhgABcANGeuXc=
+0001010101010101018a46070015e180005c00d19eb977s*/
 # LoRa packet forwarder settings
 UDP_IP = "0.0.0.0"         # Listen on all interfaces
 UDP_PORT = 1700            # Default LoRaWAN packet forwarder port
