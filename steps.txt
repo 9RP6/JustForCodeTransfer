@@ -1,0 +1,91 @@
+✅ Step 1: Flash Raspberry Pi OS and Install Prerequisites
+bash
+Copy
+Edit
+sudo apt update
+sudo apt upgrade -y
+sudo apt install -y docker.io docker-compose
+✅ Step 2: Set up ChirpStack via Docker
+Clone the ChirpStack Docker repository:
+
+bash
+Copy
+Edit
+git clone https://github.com/chirpstack/chirpstack-docker.git
+cd chirpstack-docker
+Modify configuration for US915:
+
+Edit chirpstack/chirpstack.toml:
+
+toml
+Copy
+Edit
+[network_server.network_settings]
+enabled_uplink_channels=[0,1,2,3,4,5,6,7]  # adjust for your sub-band
+Edit chirpstack-region in docker-compose.yml (change to us915_0 or your correct region plan):
+
+yaml
+Copy
+Edit
+    environment:
+      - region=US915
+✅ Step 3: Configure the Gateway Bridge
+If using lora_pkt_fwd:
+
+In your global_conf.json.sx1250.US915, set the server_address to localhost (or Docker IP if on another host):
+
+json
+Copy
+Edit
+"serv_enabled": true,
+"server_address": "127.0.0.1",
+"serv_port_up": 1700,
+"serv_port_down": 1700
+Or use the Semtech BasicStation and configure CUPS/LNS as per ChirpStack guide.
+
+✅ Step 4: Start ChirpStack
+From the chirpstack-docker folder:
+
+bash
+Copy
+Edit
+sudo docker-compose up -d
+Wait a few seconds, then check:
+
+bash
+Copy
+Edit
+sudo docker ps
+You should see containers like:
+
+chirpstack
+
+chirpstack-mqtt
+
+chirpstack-postgresql
+
+chirpstack-redis
+
+chirpstack-gateway-bridge
+
+✅ Step 5: Access ChirpStack UI
+Go to:
+📍 http://<your-raspberry-pi-ip>:8080
+(Default login: admin / admin)
+
+✅ Step 6: Register Your Gateway
+Go to Gateways > Create
+
+Enter the Gateway EUI (shown in lora_pkt_fwd logs or set manually)
+
+Set Gateway Profile (you may need to create one with correct frequency settings)
+
+Ensure the packet forwarder is connecting — check logs of chirpstack-gateway-bridge
+
+✅ Step 7: Register a Device
+Create Application
+
+Add Device Profile (LoRaWAN 1.0.3, Class A, OTAA for STM32WL default)
+
+Register your Device (DevEUI from STM32WL, AppKey from firmware)
+
