@@ -1,121 +1,53 @@
-✅ Step 0: System Prep (Raspberry Pi OS)
-Make sure your system is updated:
-
+✅ Step-by-Step: ChirpStack Docker Installation (Raspberry Pi)
+⚙️ Step 1: Install Docker & Docker Compose
 bash
 Copy
 Edit
 sudo apt update
-sudo apt upgrade -y
-Install basic tools:
+sudo apt install -y docker.io docker-compose git
+sudo usermod -aG docker $USER
+newgrp docker  # apply group changes immediately
+📦 Step 2: Clone ChirpStack Docker Repository
+bash
+Copy
+Edit
+git clone https://github.com/chirpstack/chirpstack-docker.git
+cd chirpstack-docker
+🌎 Step 3: Configure ChirpStack for US915 (Region & Channels)
+3.1. Edit docker-compose.yml
+Open:
 
 bash
 Copy
 Edit
-sudo apt install -y curl apt-transport-https redis-server mosquitto
-✅ Step 1: Add ChirpStack APT Repository
-Add the ChirpStack repo:
+nano docker-compose.yml
+Find the chirpstack service block and edit the environment section:
 
+yaml
+Copy
+Edit
+  chirpstack:
+    ...
+    environment:
+      - region=us915_0
+us915_0 = sub-band channels 0–7 (make sure your STM32 uses this sub-band)
+
+3.2. Edit chirpstack/chirpstack.toml
 bash
 Copy
 Edit
-sudo tee /etc/apt/sources.list.d/chirpstack.list <<EOF
-deb https://artifacts.chirpstack.io/packages/ stable main
-EOF
-
-curl -fsSL https://artifacts.chirpstack.io/packages/public.gpg | sudo tee /etc/apt/trusted.gpg.d/chirpstack.gpg > /dev/null
-Update and install components:
-
-bash
-Copy
-Edit
-sudo apt update
-✅ Step 2: Install ChirpStack Components
-Install:
-
-bash
-Copy
-Edit
-sudo apt install chirpstack chirpstack-gateway-bridge postgresql
-✅ Step 3: Setup PostgreSQL Database
-Switch to PostgreSQL user and set up:
-
-bash
-Copy
-Edit
-sudo -u postgres psql
-Run these commands:
-
-sql
-Copy
-Edit
-CREATE ROLE chirpstack WITH LOGIN PASSWORD 'chirpstack';
-CREATE DATABASE chirpstack WITH OWNER chirpstack;
-\q
-Then edit config:
-
-bash
-Copy
-Edit
-sudo nano /etc/chirpstack/chirpstack.toml
-Find and update:
+nano chirpstack/chirpstack.toml
+Find this section and set enabled channels:
 
 toml
 Copy
 Edit
-dsn="postgres://chirpstack:chirpstack@localhost/chirpstack?sslmode=disable"
-✅ Step 4: Configure Gateway Bridge
-Edit the config:
+[network_server.network_settings]
+enabled_uplink_channels=[0,1,2,3,4,5,6,7]
+This matches US915 sub-band 0 (channels 902.3–903.0 MHz).
 
-bash
-Copy
-Edit
-sudo nano /etc/chirpstack-gateway-bridge/chirpstack-gateway-bridge.toml
-Ensure it listens to your UDP packet forwarder (e.g., lora_pkt_fwd):
-
-toml
-Copy
-Edit
-[backend.semtech_udp]
-enabled=true
-udp_bind = "0.0.0.0:1700"
-✅ Step 5: Enable and Start Services
-bash
-Copy
-Edit
-sudo systemctl enable chirpstack
-sudo systemctl start chirpstack
-
-sudo systemctl enable chirpstack-gateway-bridge
-sudo systemctl start chirpstack-gateway-bridge
-
-sudo systemctl enable redis
-sudo systemctl start redis
-
-sudo systemctl enable mosquitto
-sudo systemctl start mosquitto
-✅ Step 6: Web UI Access
-Once running, you can access the ChirpStack web UI at:
-
-cpp
-Copy
-Edit
-http://<YOUR_RPI_IP>:8080
-Login credentials (default):
-
-Username: admin
-
-Password: admin
-
-You can now:
-
-Add your gateway using the Gateway ID from lora_pkt_fwd logs
-
-Register your STM32/LoRa-E5 end device
-
-Set up decoding as explained earlier using the JS codec
-
-✅ Optional: Packet Forwarder Config
-Make sure your global_conf.json.sx1250.US915 on the Pi has:
+📶 Step 4: Point Gateway Packet Forwarder to ChirpStack
+Edit your global_conf.json.sx1250.US915 or equivalent:
 
 json
 Copy
@@ -123,12 +55,82 @@ Edit
 "server_address": "127.0.0.1",
 "serv_port_up": 1700,
 "serv_port_down": 1700,
-Restart lora_pkt_fwd and everything should flow.
+Then restart lora_pkt_fwd.
 
-Summary
-Component	Install Method
-ChirpStack Server	APT
-Gateway Bridge	APT
-PostgreSQL	APT
-Redis, Mosquitto	APT
-Web UI	http://<pi>:8080
+🚀 Step 5: Start ChirpStack
+bash
+Copy
+Edit
+docker-compose up -d
+Wait ~30 seconds for services to initialize.
+
+🌐 Step 6: Access ChirpStack UI
+Go to:
+
+cpp
+Copy
+Edit
+http://<your-raspberry-pi-ip>:8080
+Default login:
+
+Username: admin
+
+Password: admin
+
+🛠️ Post-Setup Configuration (Once UI is Up)
+✅ Create Network Server
+Go to Network Servers > Add
+
+Name: LocalNS
+
+Server: localhost:8000
+
+Set to default
+
+✅ Create Gateway
+Gateway ID: must match what appears in lora_pkt_fwd logs (e.g., 00000000FFFFFFFF)
+
+Frequency Plan: US915
+
+Description: anything you like
+
+✅ Create Device Profile
+LoRaWAN MAC Version: 1.0.2 or 1.0.3 (depending on STM32 firmware)
+
+Class: A
+
+Add custom codec (next step)
+
+✅ Add Payload Decoder
+Go to Applications > Your Application > Payload Codec and paste this:
+
+javascript
+Copy
+Edit
+function decodeUplink(input) {
+  var text = String.fromCharCode.apply(null, input.bytes);
+  return {
+    data: {
+      message: text
+    }
+  };
+}
+✅ Add Device
+DevEUI, AppKey: match your STM32 firmware
+
+Device Profile: use the one you made
+
+Activate using OTAA or ABP depending on how your STM32 is configured
+
+🔎 Monitor Data
+Go to Device > Live Device Data
+
+You’ll see decoded payloads like:
+
+json
+Copy
+Edit
+{
+  "message": "Hello 7"
+}
+Would you like me to generate pre-edited config files (chirpstack.toml, docker-compose.yml, global_conf.json) and send them to you as a zip?
