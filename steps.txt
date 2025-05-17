@@ -1,91 +1,134 @@
-✅ Step 1: Flash Raspberry Pi OS and Install Prerequisites
+✅ Step 0: System Prep (Raspberry Pi OS)
+Make sure your system is updated:
+
 bash
 Copy
 Edit
 sudo apt update
 sudo apt upgrade -y
-sudo apt install -y docker.io docker-compose
-✅ Step 2: Set up ChirpStack via Docker
-Clone the ChirpStack Docker repository:
+Install basic tools:
 
 bash
 Copy
 Edit
-git clone https://github.com/chirpstack/chirpstack-docker.git
-cd chirpstack-docker
-Modify configuration for US915:
+sudo apt install -y curl apt-transport-https redis-server mosquitto
+✅ Step 1: Add ChirpStack APT Repository
+Add the ChirpStack repo:
 
-Edit chirpstack/chirpstack.toml:
+bash
+Copy
+Edit
+sudo tee /etc/apt/sources.list.d/chirpstack.list <<EOF
+deb https://artifacts.chirpstack.io/packages/ stable main
+EOF
+
+curl -fsSL https://artifacts.chirpstack.io/packages/public.gpg | sudo tee /etc/apt/trusted.gpg.d/chirpstack.gpg > /dev/null
+Update and install components:
+
+bash
+Copy
+Edit
+sudo apt update
+✅ Step 2: Install ChirpStack Components
+Install:
+
+bash
+Copy
+Edit
+sudo apt install chirpstack chirpstack-gateway-bridge postgresql
+✅ Step 3: Setup PostgreSQL Database
+Switch to PostgreSQL user and set up:
+
+bash
+Copy
+Edit
+sudo -u postgres psql
+Run these commands:
+
+sql
+Copy
+Edit
+CREATE ROLE chirpstack WITH LOGIN PASSWORD 'chirpstack';
+CREATE DATABASE chirpstack WITH OWNER chirpstack;
+\q
+Then edit config:
+
+bash
+Copy
+Edit
+sudo nano /etc/chirpstack/chirpstack.toml
+Find and update:
 
 toml
 Copy
 Edit
-[network_server.network_settings]
-enabled_uplink_channels=[0,1,2,3,4,5,6,7]  # adjust for your sub-band
-Edit chirpstack-region in docker-compose.yml (change to us915_0 or your correct region plan):
+dsn="postgres://chirpstack:chirpstack@localhost/chirpstack?sslmode=disable"
+✅ Step 4: Configure Gateway Bridge
+Edit the config:
 
-yaml
+bash
 Copy
 Edit
-    environment:
-      - region=US915
-✅ Step 3: Configure the Gateway Bridge
-If using lora_pkt_fwd:
+sudo nano /etc/chirpstack-gateway-bridge/chirpstack-gateway-bridge.toml
+Ensure it listens to your UDP packet forwarder (e.g., lora_pkt_fwd):
 
-In your global_conf.json.sx1250.US915, set the server_address to localhost (or Docker IP if on another host):
+toml
+Copy
+Edit
+[backend.semtech_udp]
+enabled=true
+udp_bind = "0.0.0.0:1700"
+✅ Step 5: Enable and Start Services
+bash
+Copy
+Edit
+sudo systemctl enable chirpstack
+sudo systemctl start chirpstack
+
+sudo systemctl enable chirpstack-gateway-bridge
+sudo systemctl start chirpstack-gateway-bridge
+
+sudo systemctl enable redis
+sudo systemctl start redis
+
+sudo systemctl enable mosquitto
+sudo systemctl start mosquitto
+✅ Step 6: Web UI Access
+Once running, you can access the ChirpStack web UI at:
+
+cpp
+Copy
+Edit
+http://<YOUR_RPI_IP>:8080
+Login credentials (default):
+
+Username: admin
+
+Password: admin
+
+You can now:
+
+Add your gateway using the Gateway ID from lora_pkt_fwd logs
+
+Register your STM32/LoRa-E5 end device
+
+Set up decoding as explained earlier using the JS codec
+
+✅ Optional: Packet Forwarder Config
+Make sure your global_conf.json.sx1250.US915 on the Pi has:
 
 json
 Copy
 Edit
-"serv_enabled": true,
 "server_address": "127.0.0.1",
 "serv_port_up": 1700,
-"serv_port_down": 1700
-Or use the Semtech BasicStation and configure CUPS/LNS as per ChirpStack guide.
+"serv_port_down": 1700,
+Restart lora_pkt_fwd and everything should flow.
 
-✅ Step 4: Start ChirpStack
-From the chirpstack-docker folder:
-
-bash
-Copy
-Edit
-sudo docker-compose up -d
-Wait a few seconds, then check:
-
-bash
-Copy
-Edit
-sudo docker ps
-You should see containers like:
-
-chirpstack
-
-chirpstack-mqtt
-
-chirpstack-postgresql
-
-chirpstack-redis
-
-chirpstack-gateway-bridge
-
-✅ Step 5: Access ChirpStack UI
-Go to:
-📍 http://<your-raspberry-pi-ip>:8080
-(Default login: admin / admin)
-
-✅ Step 6: Register Your Gateway
-Go to Gateways > Create
-
-Enter the Gateway EUI (shown in lora_pkt_fwd logs or set manually)
-
-Set Gateway Profile (you may need to create one with correct frequency settings)
-
-Ensure the packet forwarder is connecting — check logs of chirpstack-gateway-bridge
-
-✅ Step 7: Register a Device
-Create Application
-
-Add Device Profile (LoRaWAN 1.0.3, Class A, OTAA for STM32WL default)
-
-Register your Device (DevEUI from STM32WL, AppKey from firmware)
-
+Summary
+Component	Install Method
+ChirpStack Server	APT
+Gateway Bridge	APT
+PostgreSQL	APT
+Redis, Mosquitto	APT
+Web UI	http://<pi>:8080
